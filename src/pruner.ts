@@ -19,6 +19,12 @@ export interface PruningReport {
   prunedEpochs: Array<{ agentId: Hex; epoch: bigint }>;
 }
 
+function assertMaxAgeMs(value: number, field: string): void {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new RangeError(`${field} must be a non-negative finite number`);
+  }
+}
+
 /**
  * AttestationPrunerDaemon
  * Manages cache lifecycle and purges expired epoch attestation proofs from local hot storage
@@ -28,10 +34,14 @@ export class AttestationPrunerDaemon {
   private defaultMaxAgeMs: number;
 
   constructor(defaultMaxAgeMs: number = 86_400_000) {
+    assertMaxAgeMs(defaultMaxAgeMs, 'defaultMaxAgeMs');
     this.defaultMaxAgeMs = defaultMaxAgeMs;
   }
 
   public recordAttestation(entry: EpochArchiveEntry): void {
+    if (!Number.isFinite(entry.anchoredTimestamp) || entry.anchoredTimestamp <= 0) {
+      throw new RangeError('anchoredTimestamp must be a positive finite number');
+    }
     this.archive.push({ ...entry });
   }
 
@@ -48,6 +58,7 @@ export class AttestationPrunerDaemon {
    */
   public prune(filter: PruningFilter = {}): PruningReport {
     const maxAgeMs = filter.maxAgeMs ?? this.defaultMaxAgeMs;
+    assertMaxAgeMs(maxAgeMs, 'maxAgeMs');
     const now = Date.now();
     const thresholdEpoch = filter.retentionEpochThreshold;
 

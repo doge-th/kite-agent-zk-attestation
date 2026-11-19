@@ -66,4 +66,50 @@ describe('AttestationPrunerDaemon', () => {
     expect(report.retainedCount).toBe(1);
     expect(daemon.getRecords()[0].epoch).toBe(15n);
   });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1])(
+    'rejects invalid default max age %s at construction',
+    (value) => {
+      expect(() => new AttestationPrunerDaemon(value)).toThrow('non-negative finite number');
+    }
+  );
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1])(
+    'rejects invalid pruning max age %s before modifying the archive',
+    (value) => {
+      daemon.recordAttestation({
+        agentId: agent1,
+        epoch: 10n,
+        anchoredTimestamp: Date.now(),
+        attestationDigest: digest1,
+      });
+      expect(() => daemon.prune({ maxAgeMs: value })).toThrow('non-negative finite number');
+      expect(daemon.getRecordCount()).toBe(1);
+    }
+  );
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 0, -1])(
+    'rejects invalid anchored timestamp %s without recording it',
+    (anchoredTimestamp) => {
+      expect(() => daemon.recordAttestation({
+        agentId: agent1,
+        epoch: 10n,
+        anchoredTimestamp,
+        attestationDigest: digest1,
+      })).toThrow('positive finite number');
+      expect(daemon.getRecordCount()).toBe(0);
+    }
+  );
+
+  it('accepts a zero max age and prunes past records', () => {
+    daemon.recordAttestation({
+      agentId: agent1,
+      epoch: 10n,
+      anchoredTimestamp: Date.now() - 1,
+      attestationDigest: digest1,
+    });
+
+    expect(daemon.prune({ maxAgeMs: 0 }).prunedCount).toBe(1);
+    expect(daemon.getRecordCount()).toBe(0);
+  });
 });
